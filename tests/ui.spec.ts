@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 test('register → read → save → search archive → reload → delete', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
+  await expect(page.getByRole('button', { name: '게시판 추가', exact: true })).toHaveCount(1);
   await page.getByRole('button', { name: '게시판 추가', exact: true }).last().click();
   await page.getByRole('button', { name: '인벤', exact: true }).click();
   await page.getByRole('button', { name: '미리보기', exact: true }).click();
