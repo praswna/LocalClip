@@ -1,0 +1,88 @@
+import { test, expect } from '@playwright/test';
+test('register → read → save → search archive → reload → delete', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: '게시판 추가', exact: true }).last().click();
+  await page.getByRole('button', { name: '인벤', exact: true }).click();
+  await page.getByRole('button', { name: '미리보기', exact: true }).click();
+  await expect(page.getByText('인벤 주소를 확인했어요.', { exact: false })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: '게시판 추가', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '디아2 자유 게시판.' })).toBeVisible();
+  await page.getByRole('button', { name: /^전체 글/ }).click();
+  await page.getByRole('button', { name: '느리게 걷는 주말, 서울 근교 산책길 5곳 읽기' }).click();
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await page.getByRole('button', { name: /^로컬 보관함/ }).click();
+  await page.getByRole('textbox', { name: '글 검색' }).fill('두물머리');
+  await expect(page.locator('.post-card')).toHaveCount(1);
+  await page.reload();
+  await page.getByRole('button', { name: /^로컬 보관함/ }).click();
+  await page.getByRole('textbox', { name: '글 검색' }).fill('산책길');
+  await page.getByRole('button', { name: '느리게 걷는 주말, 서울 근교 산책길 5곳 읽기' }).click();
+  await page.getByRole('button', { name: '저장됨', exact: true }).click();
+  await page.getByRole('button', { name: '보관함에서 삭제', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '검색 결과가 없어요' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /디아2 자유 게시판/ })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+test('filter, sort, unread and settings persist honestly', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('게시판 필터').selectOption('inven');
+  await expect(page.locator('.post-card')).toHaveCount(5);
+  await page.getByLabel('정렬', { exact: true }).selectOption('oldest');
+  await expect(page.locator('.post-title').first()).toHaveText('[나눔 완료] 초보용 룬과 보석');
+  await page.getByRole('button', { name: /^안 읽은 글/ }).click();
+  await page.locator('.post-main').first().click();
+  await expect(page.locator('.reader h2')).toBeVisible();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByLabel('갱신 간격').selectOption('10');
+  await expect(page.getByRole('button', { name: /폴더 선택/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /로그인 · 연결 예정/ }).first()).toBeDisabled();
+  await page.reload(); await page.getByRole('button', { name: '설정', exact: true }).click();
+  await expect(page.getByLabel('갱신 간격')).toHaveValue('10');
+});
+test('state previews and unknown boards', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('화면 상태 미리보기').selectOption('loading');
+  await expect(page.getByText('샘플 목록을 확인하고 있어요')).toBeVisible();
+  await page.getByLabel('화면 상태 미리보기').selectOption('auth');
+  await expect(page.getByText('인벤 인증이 만료되었어요')).toBeVisible();
+  await page.getByLabel('화면 상태 미리보기').selectOption('partial');
+  await expect(page.getByText('일부 이미지를 저장하지 못했어요')).toBeVisible();
+  await page.getByLabel('화면 상태 미리보기').selectOption('empty');
+  await expect(page.getByRole('heading', { name: '아직 모인 글이 없어요' })).toBeVisible();
+  await page.getByRole('button', { name: '게시판 추가', exact: true }).last().click();
+  await page.getByLabel('게시판 이름', { exact: true }).fill('새 커뮤니티');
+  await page.getByLabel('게시판 주소').fill('https://example.com/forum');
+  await page.getByRole('button', { name: '미리보기', exact: true }).click();
+  await expect(page.getByText('이 사이트는 지원 준비 중입니다.', { exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: '게시판 추가', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '아직 지원 준비 중이에요' })).toBeVisible();
+});
+test('keyboard dialog focus, duplicate detection and compact layouts', async ({ page }) => {
+  await page.goto('/');
+  const add = page.getByRole('button', { name: '게시판 추가', exact: true }).last();
+  await add.click(); await expect(page.getByLabel('게시판 이름', { exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'AAGAG', exact: true }).click();
+  await page.getByRole('button', { name: '미리보기', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('이미 등록한 게시판');
+  await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0); await expect(add).toBeFocused();
+  for (const width of [900, 780, 390]) {
+    await page.setViewportSize({ width, height: 760 });
+    await page.getByRole('button', { name: /^전체 글/ }).click();
+    await page.locator('.post-main').first().click();
+    await expect(page.getByRole('button', { name: '목록으로 돌아가기' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '저장', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', { name: '목록으로 돌아가기' }).click();
+    await expect(page.locator('.post-card').first()).toBeVisible();
+  }
+});
+test('screenshots and no remote requests on normal demo startup', async ({ page }) => {
+  const remote: string[] = []; page.on('request', r => { if (!r.url().startsWith('http://127.0.0.1:5173') && !r.url().startsWith('data:')) remote.push(r.url()); });
+  await page.goto('/'); await page.locator('.article-scroll img').waitFor();
+  await page.screenshot({ path: 'test-results/localclip-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 900, height: 760 });
+  await page.locator('.post-main').first().click();
+  await page.screenshot({ path: 'test-results/localclip-compact.png', fullPage: true });
+  expect(remote).toEqual([]);
+});
