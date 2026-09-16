@@ -81,6 +81,31 @@ test('keyboard dialog focus, duplicate detection and compact layouts', async ({ 
     await expect(page.locator('.post-card').first()).toBeVisible();
   }
 });
+test('ADQE and number shortcuts navigate without hijacking text inputs', async ({ page }) => {
+  await page.goto('/');
+  await page.keyboard.press('2');
+  await expect(page.getByRole('heading', { name: '안 읽은 글' })).toBeVisible();
+  await page.keyboard.press('3');
+  await expect(page.getByRole('heading', { name: '로컬 보관함' })).toBeVisible();
+  await page.keyboard.press('4');
+  await expect(page.getByRole('heading', { name: '설정', level: 1 })).toBeVisible();
+  await page.keyboard.press('1');
+  await expect(page.getByRole('heading', { name: '전체 글' })).toBeVisible();
+  await page.keyboard.press('e');
+  await expect(page.getByRole('heading', { name: '안 읽은 글' })).toBeVisible();
+  await page.keyboard.press('q');
+  await expect(page.getByRole('heading', { name: '전체 글' })).toBeVisible();
+  await page.keyboard.press('d');
+  await expect(page.locator('.post-card.selected .post-title')).toHaveText('느리게 걷는 주말, 서울 근교 산책길 5곳');
+  await page.keyboard.press('d');
+  await expect(page.locator('.post-card.selected .post-title')).toHaveText('[래더] 탈라샤 세트 나눔합니다');
+  await page.keyboard.press('a');
+  await expect(page.locator('.post-card.selected .post-title')).toHaveText('느리게 걷는 주말, 서울 근교 산책길 5곳');
+  const search = page.getByRole('textbox', { name: '글 검색' });
+  await search.focus(); await page.keyboard.type('adqe1234');
+  await expect(search).toHaveValue('adqe1234');
+  await expect(page.getByRole('heading', { name: '전체 글' })).toBeVisible();
+});
 test('screenshots and no remote requests on normal demo startup', async ({ page }) => {
   const remote: string[] = []; page.on('request', r => { if (!r.url().startsWith('http://127.0.0.1:5173') && !r.url().startsWith('data:')) remote.push(r.url()); });
   await page.goto('/'); await page.locator('.article-scroll img').waitFor();

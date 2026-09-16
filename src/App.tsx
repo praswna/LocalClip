@@ -80,18 +80,49 @@ export default function App() {
     else window.open(url, '_blank', 'noopener,noreferrer');
   };
   const markVisible = () => { setState(s => ({ ...s, read: [...new Set([...s.read, ...visible.map(p => p.id)])] })); setToast('현재 목록의 글을 모두 읽음으로 표시했어요.'); };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || document.querySelector('dialog[open]')) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      const key = event.key.toLowerCase();
+      const numbered: Record<string, View> = { '1': 'all', '2': 'unread', '3': 'saved', '4': 'settings' };
+      if (numbered[key]) { event.preventDefault(); changeView(numbered[key]); return; }
+      if (key === 'q' || key === 'e') {
+        event.preventDefault();
+        const feeds: View[] = ['all', 'unread', 'saved', ...knownBoards.map(board => board.id)];
+        const current = Math.max(0, feeds.indexOf(view));
+        const offset = key === 'q' ? -1 : 1;
+        changeView(feeds[(current + offset + feeds.length) % feeds.length]);
+        return;
+      }
+      if ((key === 'a' || key === 'd') && view !== 'settings' && visible.length) {
+        event.preventDefault();
+        const current = visible.findIndex(item => item.id === selected);
+        const next = key === 'a'
+          ? (current <= 0 ? visible.length - 1 : current - 1)
+          : (current < 0 || current >= visible.length - 1 ? 0 : current + 1);
+        openPost(visible[next]);
+        document.querySelector(`[data-post-id="${visible[next].id}"]`)?.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (key === 'escape' && detailMobile) { event.preventDefault(); setDetailMobile(false); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [view, selected, visible, knownBoards, detailMobile]);
 
   return <div className="app-shell">
     <aside className="sidebar">
       <a className="brand" href="#" onClick={e => { e.preventDefault(); changeView('all'); }} aria-label="LocalClip 홈"><span className="brand-icon"><Paperclip size={24} /></span><span>Local<span className="brand-light">Clip</span></span></a>
       <nav aria-label="주 메뉴" className="main-nav">
-        {[{ id: 'all', text: '전체 글', icon: LayoutGrid, count: posts.length }, { id: 'unread', text: '안 읽은 글', icon: Inbox, count: unreadCount }, { id: 'saved', text: '로컬 보관함', icon: Bookmark, count: savedCount }].map(n => <button key={n.id} className={`nav-item ${view === n.id ? 'active' : ''}`} aria-label={`${n.text} ${n.count}`} aria-current={view === n.id ? 'page' : undefined} onClick={() => changeView(n.id)}><n.icon size={19} /><span>{n.text}</span><span className="nav-count">{n.count}</span></button>)}
+        {[{ id: 'all', text: '전체 글', icon: LayoutGrid, count: posts.length, key: '1' }, { id: 'unread', text: '안 읽은 글', icon: Inbox, count: unreadCount, key: '2' }, { id: 'saved', text: '로컬 보관함', icon: Bookmark, count: savedCount, key: '3' }].map(n => <button key={n.id} className={`nav-item ${view === n.id ? 'active' : ''}`} aria-label={`${n.text} ${n.count}`} aria-current={view === n.id ? 'page' : undefined} onClick={() => changeView(n.id)}><n.icon size={19} /><span>{n.text}</span><span className="nav-count">{n.count}</span><kbd>{n.key}</kbd></button>)}
       </nav>
       <div className="section-label"><span>내 게시판</span><button className="icon-btn" aria-label="게시판 추가" onClick={() => setAddOpen(true)}><Plus size={17} /></button></div>
       <nav aria-label="등록한 게시판" className="board-nav">{knownBoards.map(b => <button className={`nav-item board-nav-item ${view === b.id ? 'active' : ''}`} key={b.id} onClick={() => changeView(b.id)} aria-current={view === b.id ? 'page' : undefined}><SourceIcon board={b} /><span><strong>{b.name}</strong><small>{sourceName(b)}</small></span>{b.source === 'unsupported' ? <Clock3 size={13} /> : <span className="board-dot" />}</button>)}</nav>
       <button className="add-board" onClick={() => setAddOpen(true)}><Plus size={16} />게시판 추가하기</button>
       <div className="sidebar-bottom">
-        <button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => changeView('settings')}><Settings2 size={18} /><span>설정</span></button>
+        <button aria-label="설정" className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => changeView('settings')}><Settings2 size={18} /><span>설정</span><kbd>4</kbd></button>
         <button className="nav-item help-nav" onClick={() => setHelpOpen(true)}><CircleHelp size={18} /><span>LocalClip 알아보기</span><ArrowUpRight size={14} /></button>
       </div>
     </aside>
@@ -107,7 +138,7 @@ export default function App() {
               <div className="list-controls"><label><span className="sr-only">게시판 필터</span><select value={boardFilter} onChange={e => { setBoardFilter(e.target.value); setSelected(null); }}><option value="all">모든 게시판</option>{knownBoards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label className="sort-control"><ArrowDownWideNarrow size={13} /><span className="sr-only">정렬</span><select aria-label="정렬" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">최신순</option><option value="oldest">오래된순</option></select></label></div>
               {scenario === 'auth' && <div className="auth-banner"><LockKeyhole size={18} /><div><strong>인벤 인증이 만료되었어요</strong><p>상태 예시입니다. 재로그인은 연결 예정이에요.</p></div></div>}
               <div className="list-scroll" aria-busy={loading}>
-                {loading ? <div className="loading-state" role="status"><LoaderCircle className="spinning" size={25} /><p>샘플 목록을 확인하고 있어요</p>{[1, 2, 3, 4].map(n => <div className="skeleton" key={n}><i /><i /><i /></div>)}</div> : visible.length === 0 ? <Empty icon={query ? Search : Inbox} title={query ? '검색 결과가 없어요' : activeBoard?.source === 'unsupported' ? '아직 지원 준비 중이에요' : '아직 모인 글이 없어요'} text={query ? '다른 검색어로 다시 찾아보세요.' : view === 'saved' ? '글의 저장 버튼을 눌러 보관함을 채워보세요.' : '추가한 게시판의 실제 수집은 다음 단계에 연결됩니다.'} /> : visible.map(p => <div key={p.id} className={`post-card ${selected === p.id ? 'selected' : ''} ${state.read.includes(p.id) ? 'is-read' : ''}`}>
+                {loading ? <div className="loading-state" role="status"><LoaderCircle className="spinning" size={25} /><p>샘플 목록을 확인하고 있어요</p>{[1, 2, 3, 4].map(n => <div className="skeleton" key={n}><i /><i /><i /></div>)}</div> : visible.length === 0 ? <Empty icon={query ? Search : Inbox} title={query ? '검색 결과가 없어요' : activeBoard?.source === 'unsupported' ? '아직 지원 준비 중이에요' : '아직 모인 글이 없어요'} text={query ? '다른 검색어로 다시 찾아보세요.' : view === 'saved' ? '글의 저장 버튼을 눌러 보관함을 채워보세요.' : '추가한 게시판의 실제 수집은 다음 단계에 연결됩니다.'} /> : visible.map(p => <div key={p.id} data-post-id={p.id} className={`post-card ${selected === p.id ? 'selected' : ''} ${state.read.includes(p.id) ? 'is-read' : ''}`}>
                   <button className="post-main" onClick={() => openPost(p)} aria-label={`${p.title} 읽기`} aria-pressed={selected === p.id}><span className="post-meta"><SourceIcon board={boardFor(p)} /><span>{sourceName(boardFor(p))}</span><span className="meta-dot">·</span><time>{timeAgo(p.publishedAt)}</time>{!state.read.includes(p.id) && <span className="unread-dot" aria-label="안 읽음" />}</span><span className="post-title">{p.title}</span><span className="post-excerpt">{p.excerpt}</span><span className="post-footer"><span>{p.category}</span><span>{p.author}</span></span></button>
                   <button className={`card-bookmark icon-btn ${state.saved[p.id] ? 'is-saved' : ''}`} aria-label={`${p.title} ${state.saved[p.id] ? '저장 취소' : '저장'}`} aria-pressed={Boolean(state.saved[p.id])} onClick={() => toggleSave(p)}><Bookmark size={16} fill={state.saved[p.id] ? 'currentColor' : 'none'} /></button>
                 </div>)}
@@ -129,11 +160,11 @@ export default function App() {
           </div>
         </div>
       </>}
-      <footer className="app-footer"><span><ShieldCheck size={12} />이 기기에만 저장</span><span className="version">LocalClip v0.1</span></footer>
+      <footer className="app-footer"><span className="shortcut-strip"><kbd>Q</kbd><kbd>E</kbd> 피드 <span className="shortcut-separator" /><kbd>A</kbd><kbd>D</kbd> 글 <span className="shortcut-separator" /><kbd>1</kbd>–<kbd>4</kbd> 화면</span><span className="version">LocalClip v0.1</span></footer>
     </main>
     {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
     {addOpen && <AddBoard existing={knownBoards} close={() => setAddOpen(false)} add={b => { const newBoard = { ...b, id: crypto.randomUUID() }; setState(s => ({ ...s, boards: [...s.boards, newBoard] })); setAddOpen(false); changeView(newBoard.id); setToast(b.source === 'unsupported' ? '게시판을 등록했어요. 이 사이트는 지원 준비 중입니다.' : '게시판을 등록했어요. 실제 글 수집은 연결 예정입니다.'); }} />}
-    {helpOpen && <Modal title="LocalClip 안내" close={() => setHelpOpen(false)}><div className="help-content"><span className="brand-icon"><Paperclip size={28} /></span><h3>LocalClip</h3><p>여러 게시판의 글을 한곳에서 읽고 PC에 저장하는 앱입니다.</p><div className="info-box"><strong>현재 UI 데모</strong><p>검색, 읽음 표시, 게시판 등록과 샘플 보관함을 사용할 수 있습니다. 설정과 보관 상태는 이 기기에 저장됩니다.</p><p>로그인·글 수집·본문 및 이미지 다운로드·저장 폴더 선택은 아직 연결되지 않았습니다. 샘플 글의 원문 열기는 출처 게시판을 엽니다.</p></div><button className="primary-button full-width" onClick={() => setHelpOpen(false)}>확인</button></div></Modal>}
+    {helpOpen && <Modal title="LocalClip 안내" close={() => setHelpOpen(false)}><div className="help-content"><span className="brand-icon"><Paperclip size={28} /></span><h3>LocalClip</h3><p>여러 게시판의 글을 한곳에서 읽고 PC에 저장하는 앱입니다.</p><div className="shortcut-help"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></span><p>전체 · 안 읽음 · 보관함 · 설정</p><span><kbd>Q</kbd><kbd>E</kbd></span><p>이전 · 다음 피드</p><span><kbd>A</kbd><kbd>D</kbd></span><p>이전 · 다음 글</p></div><div className="info-box"><strong>현재 UI 데모</strong><p>로그인·글 수집·본문 및 이미지 다운로드·저장 폴더 선택은 아직 연결되지 않았습니다.</p></div><button className="primary-button full-width" onClick={() => setHelpOpen(false)}>확인</button></div></Modal>}
     {deletePost && <Modal title="보관함에서 삭제할까요?" close={() => setDeletePost(null)}><p className="modal-description">‘{deletePost.title}’의 데모 보관 상태를 삭제합니다. 글 목록에는 그대로 남습니다.</p><div className="modal-footer"><button className="secondary-button" onClick={() => setDeletePost(null)}>취소</button><button className="danger-button" onClick={() => { setState(s => { const saved = { ...s.saved }; delete saved[deletePost.id]; return { ...s, saved }; }); setDeletePost(null); setToast('보관함에서 삭제했어요.'); }}>보관함에서 삭제</button></div></Modal>}
   </div>;
 }
