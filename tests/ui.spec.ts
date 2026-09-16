@@ -36,7 +36,7 @@ test('filter, sort, unread and settings persist honestly', async ({ page }) => {
   await expect(page.locator('.reader h2')).toBeVisible();
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('갱신 간격').selectOption('10');
-  await expect(page.getByRole('button', { name: /폴더 선택/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '폴더 선택', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '연결 예정' }).first()).toBeDisabled();
   await page.reload(); await page.getByRole('button', { name: '설정', exact: true }).click();
   await expect(page.getByLabel('갱신 간격')).toHaveValue('10');

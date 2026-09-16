@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { ArrowDownWideNarrow, ArrowLeft, ArrowUpRight, BookOpen, Bookmark, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, ExternalLink, Folder, Inbox, LayoutGrid, LoaderCircle, LockKeyhole, Plus, RefreshCw, Search, Settings2, ShieldCheck, WifiOff, X } from 'lucide-react';
 import { DemoRepository, parseBoard } from './data/repository';
 import { freshState } from './data/seed';
-import type { Board, DemoState, Post } from './data/types';
+import type { ArchivePost, Board, DemoState, Post } from './data/types';
 
 type View = 'all' | 'unread' | 'saved' | 'settings' | string;
 type Scenario = 'normal' | 'empty' | 'loading' | 'auth' | 'partial';
@@ -39,10 +39,19 @@ export default function App() {
   const [storageError, setStorageError] = useState(boot.error);
   const [deletePost, setDeletePost] = useState<Post | null>(null);
   const [sort, setSort] = useState('newest');
+  const [archiveRoot, setArchiveRoot] = useState<string | null>(null);
+  const [archiveBusy, setArchiveBusy] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshFn = useRef<() => void>(() => {});
 
   useEffect(() => { try { repository.save(state); } catch { setStorageError('기기에 상태를 저장하지 못했습니다. 저장 공간이나 브라우저 권한을 확인해 주세요.'); } }, [state]);
+  useEffect(() => {
+    if (!window.localclip) return;
+    window.localclip.getArchiveInfo().then(info => {
+      setArchiveRoot(info.root);
+      setState(s => ({ ...s, saved: Object.fromEntries(info.savedIds.map((id, index) => [id, Date.now() - index])) }));
+    }).catch(() => setStorageError('로컬 보관함 정보를 읽지 못했습니다.'));
+  }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3500); return () => clearTimeout(t); }, [toast]);
   useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
   useEffect(() => { const t = setInterval(() => refreshFn.current(), state.preferences.interval * 60_000); return () => clearInterval(t); }, [state.preferences.interval]);
@@ -62,10 +71,30 @@ export default function App() {
   const loading = refreshing || scenario === 'loading';
   const changeView = (next: View) => { setView(next); setQuery(''); setBoardFilter('all'); setSelected(null); setDetailMobile(false); setScenario('normal'); };
   const openPost = (p: Post) => { setSelected(p.id); setDetailMobile(true); setState(s => ({ ...s, read: [...new Set([...s.read, p.id])] })); };
-  const toggleSave = (p: Post) => {
+  const archivePost = (p: Post): ArchivePost => ({ id: p.id, source: boardFor(p)?.source ?? 'unsupported', title: p.title, author: p.author, category: p.category, sourceUrl: boardFor(p)?.url ?? '', publishedAt: p.publishedAt, paragraphs: p.paragraphs, image: p.image });
+  const toggleSave = async (p: Post) => {
     if (state.saved[p.id]) { setDeletePost(p); return; }
+    if (window.localclip) {
+      setArchiveBusy(true);
+      try {
+        let root = archiveRoot;
+        if (!root) { const info = await window.localclip.chooseArchiveFolder(); root = info.root; setArchiveRoot(root); }
+        if (!root) { setToast('저장 위치 선택을 취소했습니다.'); return; }
+        const result = await window.localclip.savePost(archivePost(p));
+        if (!result.ok) { setToast('글을 저장하지 못했습니다.'); return; }
+        setState(s => ({ ...s, saved: { ...s.saved, [p.id]: Date.now() }, preferences: { ...s.preferences, storageLabel: root! } }));
+        setToast(result.imageSaved ? '본문과 이미지를 글별 폴더에 저장했습니다.' : '본문을 글별 폴더에 저장했습니다.');
+        return;
+      } catch { setStorageError('글 파일 저장에 실패했습니다. 저장 위치와 권한을 확인해 주세요.'); return; }
+      finally { setArchiveBusy(false); }
+    }
     setState(s => ({ ...s, saved: { ...s.saved, [p.id]: Date.now() } }));
     setToast('보관함에 담았어요. 데모 보관 상태만 이 기기에 저장됩니다.');
+  };
+  const chooseArchiveFolder = async () => {
+    if (!window.localclip) { setToast('폴더 선택은 데스크톱 앱에서 사용할 수 있습니다.'); return; }
+    try { const info = await window.localclip.chooseArchiveFolder(); setArchiveRoot(info.root); if (info.root) { setState(s => ({ ...s, preferences: { ...s.preferences, storageLabel: info.root! } })); setToast('저장 위치를 변경했습니다. 기존 파일은 이동하지 않습니다.'); } }
+    catch { setStorageError('저장 위치를 변경하지 못했습니다.'); }
   };
   const refresh = () => {
     if (refreshTimer.current || scenario === 'loading') return;
@@ -132,7 +161,7 @@ export default function App() {
     <main className="main">
       <div className="page-heading"><h1>{title}</h1><button className="primary-button" onClick={() => setAddOpen(true)}><Plus size={17} />게시판 추가</button></div>
       {storageError && <div className="error-banner" role="alert">{storageError}<button className="icon-btn" aria-label="저장 안내 닫기" onClick={() => setStorageError('')}><X size={16} /></button></div>}
-      {view === 'settings' ? <Settings state={state} setState={setState} scenario={scenario} setScenario={next => { setScenario(next); if (next !== 'normal') { setView('all'); setQuery(''); setBoardFilter('all'); setSelected(next === 'partial' ? 'demo-1' : null); setDetailMobile(next === 'partial'); } }} /> : <>
+      {view === 'settings' ? <Settings state={state} setState={setState} archiveRoot={archiveRoot} chooseArchiveFolder={chooseArchiveFolder} scenario={scenario} setScenario={next => { setScenario(next); if (next !== 'normal') { setView('all'); setQuery(''); setBoardFilter('all'); setSelected(next === 'partial' ? 'demo-1' : null); setDetailMobile(next === 'partial'); } }} /> : <>
         <div className="content-panel">
           <div className="panel-toolbar"><div className="view-tabs"><span className="active-tab">글 {visible.length}개</span></div><div className="toolbar-actions"><label className="search-box"><Search size={16} /><input aria-label="글 검색" placeholder="글 검색" value={query} onChange={e => { setQuery(e.target.value); setSelected(null); }} />{query && <button className="icon-btn" aria-label="검색어 지우기" onClick={() => setQuery('')}><X size={14} /></button>}</label><button onClick={refresh} disabled={loading} className="toolbar-button" title={lastRefresh ? `${new Date(lastRefresh).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 확인` : '새로고침'}><RefreshCw size={15} className={refreshing ? 'spinning' : ''} />새로고침</button><button className="toolbar-button" title="모두 읽음으로 표시" aria-label="모두 읽음으로 표시" onClick={markVisible} disabled={!visible.length}><CheckCheck size={16} />모두 읽음</button></div></div>
           <div className={`reading-layout ${detailMobile ? 'show-detail' : ''}`}>
@@ -142,13 +171,13 @@ export default function App() {
               <div className="list-scroll" aria-busy={loading}>
                 {loading ? <div className="loading-state" role="status"><LoaderCircle className="spinning" size={25} /><p>샘플 목록을 확인하고 있어요</p>{[1, 2, 3, 4].map(n => <div className="skeleton" key={n}><i /><i /><i /></div>)}</div> : visible.length === 0 ? <Empty icon={query ? Search : Inbox} title={query ? '검색 결과가 없어요' : activeBoard?.source === 'unsupported' ? '아직 지원 준비 중이에요' : '아직 모인 글이 없어요'} text={query ? '다른 검색어로 다시 찾아보세요.' : view === 'saved' ? '글의 저장 버튼을 눌러 보관함을 채워보세요.' : '추가한 게시판의 실제 수집은 다음 단계에 연결됩니다.'} /> : visible.map(p => <div key={p.id} data-post-id={p.id} className={`post-card ${selected === p.id ? 'selected' : ''} ${state.read.includes(p.id) ? 'is-read' : ''}`}>
                   <button className="post-main" onClick={() => openPost(p)} aria-label={`${p.title} 읽기`} aria-pressed={selected === p.id}><span className="post-meta"><SourceIcon board={boardFor(p)} /><span>{sourceName(boardFor(p))}</span><span className="meta-dot">·</span><time>{timeAgo(p.publishedAt)}</time>{!state.read.includes(p.id) && <span className="unread-dot" aria-label="안 읽음" />}</span><span className="post-title">{p.title}</span><span className="post-excerpt">{p.excerpt}</span><span className="post-footer"><span>{p.category}</span><span>{p.author}</span></span></button>
-                  <button className={`card-bookmark icon-btn ${state.saved[p.id] ? 'is-saved' : ''}`} aria-label={`${p.title} ${state.saved[p.id] ? '저장 취소' : '저장'}`} aria-pressed={Boolean(state.saved[p.id])} onClick={() => toggleSave(p)}><Bookmark size={16} fill={state.saved[p.id] ? 'currentColor' : 'none'} /></button>
+                  <button disabled={archiveBusy} className={`card-bookmark icon-btn ${state.saved[p.id] ? 'is-saved' : ''}`} aria-label={`${p.title} ${state.saved[p.id] ? '저장 취소' : '저장'}`} aria-pressed={Boolean(state.saved[p.id])} onClick={() => toggleSave(p)}><Bookmark size={16} fill={state.saved[p.id] ? 'currentColor' : 'none'} /></button>
                 </div>)}
               </div><div className="list-bottom"><Check size={13} />샘플 글 {visible.length}개를 표시하고 있어요</div>
             </section>
             <section className="reader" aria-label="글 상세">
               {!post || loading ? <Empty icon={BookOpen} title="마음에 드는 이야기를 골라보세요" text="왼쪽 목록에서 글을 선택하면 여기에서 읽을 수 있어요." /> : <>
-                <div className="reader-actions"><button className="icon-btn back-button" aria-label="목록으로 돌아가기" onClick={() => setDetailMobile(false)}><ArrowLeft size={18} /></button><span className="reader-source"><SourceIcon board={boardFor(post)} />{sourceName(boardFor(post))}<ChevronRight size={12} /><span>{boardFor(post)?.name}</span></span><div className="reader-button-group"><button className="text-button" onClick={() => openOriginal(post)} title="샘플에는 실제 원문이 없어 출처 게시판을 엽니다">원문 열기<ExternalLink size={13} /></button><button className={`save-button ${state.saved[post.id] ? 'saved' : ''}`} onClick={() => toggleSave(post)}><Bookmark size={15} fill={state.saved[post.id] ? 'currentColor' : 'none'} />{state.saved[post.id] ? '저장됨' : '저장'}</button></div></div>
+                <div className="reader-actions"><button className="icon-btn back-button" aria-label="목록으로 돌아가기" onClick={() => setDetailMobile(false)}><ArrowLeft size={18} /></button><span className="reader-source"><SourceIcon board={boardFor(post)} />{sourceName(boardFor(post))}<ChevronRight size={12} /><span>{boardFor(post)?.name}</span></span><div className="reader-button-group"><button className="text-button" onClick={() => openOriginal(post)} title="샘플에는 실제 원문이 없어 출처 게시판을 엽니다">원문 열기<ExternalLink size={13} /></button><button disabled={archiveBusy} className={`save-button ${state.saved[post.id] ? 'saved' : ''}`} onClick={() => toggleSave(post)}><Bookmark size={15} fill={state.saved[post.id] ? 'currentColor' : 'none'} />{archiveBusy ? '처리 중' : state.saved[post.id] ? '저장됨' : '저장'}</button></div></div>
                 <article className="article-scroll" key={post.id}><div className="article-category">{post.category}<span>DEMO STORY</span></div><h2>{post.title}</h2><div className="article-meta"><span className="author-avatar">{post.author.slice(0, 1)}</span><strong>{post.author}</strong><span>·</span><time>{new Date(post.publishedAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}</time><span>·</span><span>3분 읽기</span></div>
                   {scenario === 'partial' && <div className="partial-banner"><WifiOff size={18} /><div><strong>일부 이미지를 저장하지 못했어요</strong><p>부분 저장 상태 예시입니다. 실제 다운로드는 연결 예정입니다.</p></div><button className="text-button" onClick={() => { setScenario('normal'); setToast('부분 저장 예시를 종료했어요. 실제 다운로드는 수행하지 않았습니다.'); }}>예시 종료</button></div>}
                   <p className="article-lead">{post.excerpt}</p>{post.image && <figure><img src={post.image} alt={post.id === 'demo-1' ? '잔잔한 호수와 산책길을 그린 샘플 일러스트' : `${post.category} 샘플 일러스트`} /><figcaption>LocalClip을 위해 만든 샘플 일러스트</figcaption></figure>}
@@ -165,7 +194,7 @@ export default function App() {
     {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
     {addOpen && <AddBoard existing={knownBoards} close={() => setAddOpen(false)} add={b => { const newBoard = { ...b, id: crypto.randomUUID() }; setState(s => ({ ...s, boards: [...s.boards, newBoard] })); setAddOpen(false); changeView(newBoard.id); setToast(b.source === 'unsupported' ? '게시판을 등록했어요. 이 사이트는 지원 준비 중입니다.' : '게시판을 등록했어요. 실제 글 수집은 연결 예정입니다.'); }} />}
     {helpOpen && <Modal title="도움말" close={() => setHelpOpen(false)}><div className="help-content"><div className="shortcut-help"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></span><p>첫 번째부터 네 번째 게시판</p><span><kbd>Q</kbd><kbd>E</kbd></span><p>이전 · 다음 피드</p><span><kbd>A</kbd><kbd>D</kbd></span><p>이전 · 다음 글</p></div><div className="info-box"><strong>현재 UI 데모</strong><p>로그인·글 수집·본문 및 이미지 다운로드·저장 폴더 선택은 아직 연결되지 않았습니다.</p></div><button className="primary-button full-width" onClick={() => setHelpOpen(false)}>닫기</button></div></Modal>}
-    {deletePost && <Modal title="보관함에서 삭제할까요?" close={() => setDeletePost(null)}><p className="modal-description">‘{deletePost.title}’의 데모 보관 상태를 삭제합니다. 글 목록에는 그대로 남습니다.</p><div className="modal-footer"><button className="secondary-button" onClick={() => setDeletePost(null)}>취소</button><button className="danger-button" onClick={() => { setState(s => { const saved = { ...s.saved }; delete saved[deletePost.id]; return { ...s, saved }; }); setDeletePost(null); setToast('보관함에서 삭제했어요.'); }}>보관함에서 삭제</button></div></Modal>}
+    {deletePost && <Modal title="보관함에서 삭제할까요?" close={() => setDeletePost(null)}><p className="modal-description">‘{deletePost.title}’의 {window.localclip ? '로컬 글 폴더와 파일을' : '데모 보관 상태를'} 삭제합니다. 글 목록에는 그대로 남습니다.</p><div className="modal-footer"><button className="secondary-button" onClick={() => setDeletePost(null)}>취소</button><button className="danger-button" onClick={async () => { const target = deletePost; setArchiveBusy(true); try { if (window.localclip) await window.localclip.deletePost(archivePost(target)); setState(s => { const saved = { ...s.saved }; delete saved[target.id]; return { ...s, saved }; }); setDeletePost(null); setToast(window.localclip ? '로컬 글 폴더를 삭제했습니다.' : '보관함에서 삭제했어요.'); } catch { setStorageError('로컬 글 폴더를 삭제하지 못했습니다.'); } finally { setArchiveBusy(false); } }}>보관함에서 삭제</button></div></Modal>}
   </div>;
 }
 
@@ -177,6 +206,6 @@ function AddBoard({ close, existing, add }: { close(): void; existing: Board[]; 
   const submit = (e: FormEvent) => { e.preventDefault(); try { const b = parseBoard(name, url); if (existing.some(v => v.url === b.url)) throw new Error('이미 등록한 게시판입니다. 왼쪽 메뉴에서 확인해 주세요.'); if (!preview) { setPreview(b); setError(''); } else add(b); } catch (err) { setError((err as Error).message); } };
   return <Modal title="새 게시판 추가" close={close}><form onSubmit={submit}><p className="modal-description">등록할 게시판 정보를 입력하세요.</p><label className="form-field">게시판 이름<input autoFocus maxLength={60} placeholder="예: 디아블로2 자유 게시판" value={name} onChange={e => { setName(e.target.value); setPreview(null); }} required /></label><label className="form-field">게시판 주소<input type="url" placeholder="https://" value={url} onChange={e => { setURL(e.target.value); setPreview(null); }} required /></label><div className="example-links"><span>예시 입력</span><button type="button" onClick={() => { setName('디아2 자유 게시판'); setURL('https://www.inven.co.kr/board/diablo2/5735'); setPreview(null); }}>인벤</button><button type="button" onClick={() => { setName('AAGAG 최신 이슈'); setURL('https://aagag.com/'); setPreview(null); }}>AAGAG</button></div>{error && <p className="form-error" role="alert">{error}</p>}{preview && <div className="board-preview"><SourceIcon board={{ ...preview, id: 'preview' }} /><div><strong>{preview.name}</strong><p>{preview.source === 'unsupported' ? '이 사이트는 지원 준비 중입니다.' : `${sourceName({ ...preview, id: '' })} 주소를 확인했어요. 실제 목록 수집은 연결 예정입니다.`}</p></div></div>}<div className="info-box compact"><ShieldCheck size={17} /><span>지금은 주소와 이름만 로컬에 저장합니다.<br />로그인 정보는 입력하지 마세요.</span></div><div className="modal-footer"><button type="button" className="secondary-button" onClick={close}>취소</button><button className="primary-button" type="submit">{preview ? '게시판 추가' : '미리보기'}<ChevronRight size={15} /></button></div></form></Modal>;
 }
-function Settings({ state, setState, scenario, setScenario }: { state: DemoState; setState: React.Dispatch<React.SetStateAction<DemoState>>; scenario: Scenario; setScenario(scenario: Scenario): void }) {
-  return <section className="settings-panel" aria-label="앱 설정"><div className="settings-intro"><div><h2>설정</h2><p>변경 내용은 이 기기에 저장됩니다.</p></div></div><div className="setting-row"><div><h3>목록 갱신 간격</h3><p>실제 수집은 연결 예정입니다.</p></div><select aria-label="갱신 간격" value={state.preferences.interval} onChange={e => setState(s => ({ ...s, preferences: { ...s.preferences, interval: Number(e.target.value) } }))}>{[1, 5, 10, 30].map(n => <option key={n} value={n}>{n}분마다</option>)}</select></div><div className="setting-row"><div><h3>로컬 저장 위치</h3><p>{state.preferences.storageLabel}</p></div><button className="secondary-button" disabled><Folder size={15} />폴더 선택 · 연결 예정</button></div><div className="setting-row"><div><h3>사이트 연결</h3><p>로그인과 세션 보관은 다음 단계에 연결됩니다.</p></div></div><div className="connection-list">{['인벤', 'AAGAG'].map((name, i) => <div key={name}><SourceIcon board={{ id: '', name, url: '', source: i ? 'aagag' : 'inven' }} /><strong>{name}</strong><span>미연결</span><button className="secondary-button" disabled><LockKeyhole size={14} />연결 예정</button></div>)}</div><div className="setting-row"><div><h3>화면 상태 확인</h3><p>개발 중 빈 목록과 오류 화면을 확인합니다.</p></div><select aria-label="화면 상태 미리보기" value={scenario} onChange={e => setScenario(e.target.value as Scenario)}><option value="normal">기본 화면</option><option value="empty">빈 목록</option><option value="loading">로딩</option><option value="auth">인증 만료</option><option value="partial">부분 저장</option></select></div><div className="settings-note"><p>계정, 비밀번호, 실제 게시글을 수집하거나 서버에 전송하지 않습니다.</p></div></section>;
+function Settings({ state, setState, archiveRoot, chooseArchiveFolder, scenario, setScenario }: { state: DemoState; setState: React.Dispatch<React.SetStateAction<DemoState>>; archiveRoot: string | null; chooseArchiveFolder(): void; scenario: Scenario; setScenario(scenario: Scenario): void }) {
+  return <section className="settings-panel" aria-label="앱 설정"><div className="settings-intro"><div><h2>설정</h2><p>변경 내용은 이 기기에 저장됩니다.</p></div></div><div className="setting-row"><div><h3>목록 갱신 간격</h3><p>실제 수집은 연결 예정입니다.</p></div><select aria-label="갱신 간격" value={state.preferences.interval} onChange={e => setState(s => ({ ...s, preferences: { ...s.preferences, interval: Number(e.target.value) } }))}>{[1, 5, 10, 30].map(n => <option key={n} value={n}>{n}분마다</option>)}</select></div><div className="setting-row"><div><h3>로컬 저장 위치</h3><p>{archiveRoot ?? '아직 선택하지 않음'}</p><p>선택한 폴더 안에 LocalClip/사이트/글ID 구조로 저장합니다.</p></div><button className="secondary-button" onClick={chooseArchiveFolder}><Folder size={15} />폴더 선택</button></div><div className="setting-row"><div><h3>사이트 연결</h3><p>로그인과 세션 보관은 다음 단계에 연결됩니다.</p></div></div><div className="connection-list">{['인벤', 'AAGAG'].map((name, i) => <div key={name}><SourceIcon board={{ id: '', name, url: '', source: i ? 'aagag' : 'inven' }} /><strong>{name}</strong><span>미연결</span><button className="secondary-button" disabled><LockKeyhole size={14} />연결 예정</button></div>)}</div><div className="setting-row"><div><h3>화면 상태 확인</h3><p>개발 중 빈 목록과 오류 화면을 확인합니다.</p></div><select aria-label="화면 상태 미리보기" value={scenario} onChange={e => setScenario(e.target.value as Scenario)}><option value="normal">기본 화면</option><option value="empty">빈 목록</option><option value="loading">로딩</option><option value="auth">인증 만료</option><option value="partial">부분 저장</option></select></div><div className="settings-note"><p>계정과 비밀번호는 저장하지 않습니다. 보관한 글은 선택한 로컬 폴더에 저장됩니다.</p></div></section>;
 }
