@@ -63,9 +63,15 @@ export default function App() {
   const savedCount = Object.keys(state.saved).length;
   const activeBoard = knownBoards.find(b => b.id === view);
   const title = view === 'all' ? '전체 글' : view === 'unread' ? '안 읽은 글' : view === 'saved' ? '로컬 보관함' : view === 'settings' ? '설정' : activeBoard?.name ?? '게시판';
-  let visible = posts.filter(p => (view === 'saved' ? Boolean(state.saved[p.id]) : view === 'unread' ? !state.read.includes(p.id) || p.id === selected : view === 'all' ? true : p.boardId === view)
-    && (boardFilter === 'all' || p.boardId === boardFilter)
-    && `${p.title} ${p.excerpt} ${p.paragraphs.join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const needle = query.trim().toLocaleLowerCase();
+  const searching = needle.length > 0;
+  let visible = posts.filter(p => {
+    if (!`${p.title} ${p.excerpt} ${p.paragraphs.join(' ')}`.toLocaleLowerCase().includes(needle)) return false;
+    if (boardFilter !== 'all' && p.boardId !== boardFilter) return false;
+    if (view === 'saved') return Boolean(state.saved[p.id]);
+    if (searching) return true;
+    return view === 'unread' ? !state.read.includes(p.id) || p.id === selected : view === 'all' ? true : p.boardId === view;
+  });
   visible = [...visible].sort((a, b) => sort === 'oldest' ? a.publishedAt - b.publishedAt : b.publishedAt - a.publishedAt);
   if (scenario === 'empty') visible = [];
   const post = visible.find(p => p.id === selected) ?? null;
@@ -193,7 +199,7 @@ export default function App() {
       {storageError && <div className="error-banner" role="alert">{storageError}<button className="icon-btn" aria-label="저장 안내 닫기" onClick={() => setStorageError('')}><X size={16} /></button></div>}
       {view === 'settings' ? <Settings state={state} setState={setState} archiveRoot={archiveRoot} chooseArchiveFolder={chooseArchiveFolder} scenario={scenario} setScenario={next => { setScenario(next); if (next !== 'normal') { setView('all'); setQuery(''); setBoardFilter('all'); setSelected(next === 'partial' ? 'demo-1' : null); setDetailMobile(next === 'partial'); } }} /> : <>
         <div className="content-panel">
-          <div className="panel-toolbar"><div className="view-tabs"><span className="active-tab">글 {visible.length}개</span></div><div className="toolbar-actions"><label className="search-box"><Search size={16} /><input aria-label="글 검색" placeholder="글 검색" value={query} onChange={e => { setQuery(e.target.value); setSelected(null); }} />{query && <button className="icon-btn" aria-label="검색어 지우기" onClick={() => setQuery('')}><X size={14} /></button>}</label><button onClick={refresh} disabled={loading} className="toolbar-button" title={lastRefresh ? `${new Date(lastRefresh).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 확인` : '새로고침'}><RefreshCw size={15} className={refreshing ? 'spinning' : ''} />새로고침</button><button className="toolbar-button" title="모두 읽음으로 표시" aria-label="모두 읽음으로 표시" onClick={markVisible} disabled={!visible.length}><CheckCheck size={16} />모두 읽음</button></div></div>
+          <div className="panel-toolbar"><div className="view-tabs"><span className="active-tab">{searching ? `${view === 'saved' ? '보관함 검색' : '전체 검색'} ${visible.length}개` : `글 ${visible.length}개`}</span></div><div className="toolbar-actions"><label className="search-box"><Search size={16} /><input aria-label="글 검색" placeholder="전체 게시판 검색" value={query} onChange={e => { setQuery(e.target.value); setSelected(null); }} />{query && <button className="icon-btn" aria-label="검색어 지우기" onClick={() => setQuery('')}><X size={14} /></button>}</label><button onClick={refresh} disabled={loading} className="toolbar-button" title={lastRefresh ? `${new Date(lastRefresh).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 확인` : '새로고침'}><RefreshCw size={15} className={refreshing ? 'spinning' : ''} />새로고침</button><button className="toolbar-button" title="모두 읽음으로 표시" aria-label="모두 읽음으로 표시" onClick={markVisible} disabled={!visible.length}><CheckCheck size={16} />모두 읽음</button></div></div>
           <div className={`reading-layout ${detailMobile ? 'show-detail' : ''}`}>
             <section className="post-list" aria-label="게시글 목록">
               <div className="list-controls"><label><span className="sr-only">게시판 필터</span><select value={boardFilter} onChange={e => { setBoardFilter(e.target.value); setSelected(null); }}><option value="all">모든 게시판</option>{knownBoards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label className="sort-control"><ArrowDownWideNarrow size={13} /><span className="sr-only">정렬</span><select aria-label="정렬" value={sort} onChange={e => setSort(e.target.value)}><option value="newest">최신순</option><option value="oldest">오래된순</option></select></label></div>

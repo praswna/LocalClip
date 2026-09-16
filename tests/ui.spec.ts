@@ -25,6 +25,15 @@ test('register → read → save → search archive → reload → delete', asyn
   await expect(page.getByRole('button', { name: /디아2 자유 게시판/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
+test('search spans every board regardless of the active feed', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /디아2 래더 거래/ }).click();
+  await expect(page.locator('.post-card')).toHaveCount(5);
+  await page.getByRole('textbox', { name: '글 검색' }).fill('두물머리');
+  await expect(page.locator('.post-card')).toHaveCount(1);
+  await expect(page.locator('.post-title')).toHaveText('느리게 걷는 주말, 서울 근교 산책길 5곳');
+  await expect(page.getByText('전체 검색 1개')).toBeVisible();
+});
 test('filter, sort, unread and settings persist honestly', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('게시판 필터').selectOption('inven');
