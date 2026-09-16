@@ -66,3 +66,13 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px
 @media(max-width:1200px){.reading-layout{grid-template-columns:330px minmax(0,1fr)}.article-scroll{padding:30px 38px 42px}}
 @media(max-width:1000px){.reading-layout{display:block}.article-scroll{max-width:760px}.toolbar-button{font-size:0;gap:0;padding:0 8px}.search-box{width:220px}}
 @media(max-width:680px){.brand{font-size:0;justify-content:center}.brand::after{content:'LC';font-size:16px}.toolbar-actions{gap:4px}.search-box{width:145px}.toolbar-button{padding:0 7px}.article-scroll{padding:22px 18px 34px}.article-scroll h2{font-size:23px}.article-scroll p,.article-scroll .article-lead{font-size:14px}}
+
+/* Edge-to-edge compact workspace */
+.sidebar{width:184px;padding:18px 10px 10px}.brand{padding:0 10px}.main-nav{margin-top:20px}.nav-item{min-height:34px;padding:7px 9px}.section-label{padding:18px 9px 6px}.board-nav-item{padding:7px 9px}.sidebar-bottom{margin-top:14px;padding-top:8px}
+.main{padding:0}.page-heading{height:58px;padding:10px 16px;margin:0;border-bottom:1px solid var(--border)}.page-heading h1{font-size:21px}.page-heading .primary-button{padding:7px 10px}
+.content-panel{border-radius:0;border-top:0;border-bottom:0;border-right:0}.panel-toolbar{height:52px;min-height:52px;padding:0 12px}.view-tabs{height:52px}.reading-layout{grid-template-columns:350px minmax(0,1fr)}
+.list-controls{height:38px;padding:6px 12px}.post-main{padding:12px 14px}.post-title{line-height:1.5}.reader-actions{min-height:52px;padding:8px 16px}.article-scroll{padding:24px 36px 32px}.article-scroll h2{margin-bottom:9px}.article-meta{margin-bottom:20px}.article-scroll p{margin-bottom:15px}.article-scroll figure{margin-bottom:20px}.article-scroll h3{margin:22px 0 9px}.app-footer{min-height:30px;padding:0 12px;border-top:1px solid var(--border)}
+.settings-panel{max-width:none;border-radius:0;border-top:0;border-bottom:0;border-right:0;padding:22px 28px}.setting-row{padding:17px 0}.settings-note{margin-top:18px}
+@media(max-width:1200px){.sidebar{width:174px}.reading-layout{grid-template-columns:320px minmax(0,1fr)}.article-scroll{padding:22px 28px 30px}}
+@media(max-width:1000px){.sidebar{width:164px}.reading-layout{display:block}.main{padding:0}.article-scroll{padding:22px 28px 30px}}
+@media(max-width:680px){.sidebar{width:52px;padding:12px 5px}.main{padding:0}.page-heading{height:52px;padding:8px 10px}.panel-toolbar{padding:0 8px}.article-scroll{padding:18px 14px 28px}.app-footer{padding:0 8px}}
