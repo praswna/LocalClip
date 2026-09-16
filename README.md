@@ -8,6 +8,8 @@
 
 Node.js 22.12 이상과 pnpm 11을 사용합니다. 개발 환경에서 검증한 버전은 Node.js 24, pnpm 11.19입니다.
 
+Windows에서는 저장소 루트의 `LocalClip.bat`을 더블클릭하면 됩니다. 처음 실행할 때 의존성이 없다면 자동으로 설치한 뒤 앱을 시작합니다.
+
 ```sh
 pnpm install
 pnpm dev          # 브라우저 UI: http://127.0.0.1:5173
