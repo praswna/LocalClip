@@ -4,6 +4,7 @@
 - 2026-09-16: 빈 `praswna/LocalClip` 저장소에서 UI 우선 구현.
 - Electron / React / TypeScript / Vite, 한국어 밝은 테마 3열 화면.
 - Windows에서 더블클릭 실행할 수 있는 `LocalClip.bat` 추가.
+- BAT는 Codex 번들 런타임을 사용할 때 Node 실행 경로를 PATH에 추가하고, 중단된 의존성 설치를 자동 복구한다.
 - 샘플 12개, 프로젝트 자체 SVG 일러스트 3개. 원격 이미지·웹폰트 의존성 없음.
 - 검색·필터·정렬·읽음·샘플 보관/취소·구독 등록·설정·상태 미리보기 구현.
 - 데모 상태는 localStorage에 보관. 저장소 인터페이스는 `src/data/types.ts`.
