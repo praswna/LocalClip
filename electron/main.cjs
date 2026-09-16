@@ -61,6 +61,50 @@ const archiveInfo = async () => {
 const assertMainFrame = (event, main) => {
   if (event.sender !== main.webContents || event.senderFrame !== main.webContents.mainFrame) throw new Error('INVALID_SENDER');
 };
+const parseRelativeTime = value => {
+  const text = String(value || '').replace(/\s/g, '');
+  const amount = Number(text.match(/\d+/)?.[0] || 0);
+  if (text.includes('분전')) return Date.now() - amount * 60_000;
+  if (text.includes('시간전')) return Date.now() - amount * 3_600_000;
+  if (text.includes('일전')) return Date.now() - amount * 86_400_000;
+  return Date.now();
+};
+const collectAagag = async () => {
+  const collector = new BrowserWindow({ show: false, width: 1000, height: 800,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'persist:localclip-aagag' } });
+  collector.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  try {
+    await collector.loadURL('https://aagag.com/issue/');
+    const raw = await collector.webContents.executeJavaScript(`(() => ({
+      title: document.title,
+      items: [...document.querySelectorAll('a.article[href*="idx="]')].slice(0, 80).map(link => {
+        const titleNode = link.querySelector('.title');
+        const cleanTitle = titleNode?.cloneNode(true);
+        cleanTitle?.querySelector('.btmlayer')?.remove();
+        const background = link.querySelector('.thumb')?.style.backgroundImage || '';
+        return {
+          id: new URL(link.href).searchParams.get('idx'),
+          url: link.href,
+          title: cleanTitle?.textContent?.trim() || '',
+          age: link.querySelector('.time')?.textContent?.trim() || '',
+          size: link.querySelector('.byte')?.textContent?.trim() || '',
+          hits: link.querySelector('.hit')?.textContent?.trim() || '',
+          thumbnail: background.replace(/^url\\(["']?/, '').replace(/["']?\\)$/, '')
+        };
+      }).filter(item => item.id && item.title)
+    }))()`);
+    if (!raw.items.length) throw new Error(raw.title?.includes('Just a moment') ? 'AAGAG 보안 확인이 필요합니다.' : 'AAGAG 목록을 찾지 못했습니다.');
+    return { ok: true, fetchedAt: Date.now(), posts: raw.items.map(item => ({
+      id: `aagag-${item.id}`, boardId: 'aagag', title: item.title,
+      excerpt: [item.size && `미디어 ${item.size}`, item.hits && `조회 ${item.hits}`].filter(Boolean).join(' · ') || 'AAGAG 공개 이슈',
+      author: 'AAGAG', publishedAt: parseRelativeTime(item.age), category: '이슈',
+      paragraphs: ['AAGAG에서 가져온 실제 공개 목록입니다.', '본문과 미디어는 아직 앱으로 수집하지 않습니다. 원문 열기로 확인할 수 있습니다.'],
+      url: item.url, live: true
+    })) };
+  } catch (error) {
+    return { ok: false, posts: [], fetchedAt: Date.now(), error: error instanceof Error ? error.message : 'AAGAG 연결에 실패했습니다.' };
+  } finally { if (!collector.isDestroyed()) collector.destroy(); }
+};
 app.whenReady().then(() => {
   const main = new BrowserWindow({
     title: 'LocalClip', width: 1480, height: 980, minWidth: 780, minHeight: 620,
@@ -74,9 +118,9 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('open-source', (event, url) => {
     if (event.sender !== main.webContents || event.senderFrame !== main.webContents.mainFrame || !safeURL(url)) return false;
-    // Demo source browsing is isolated and ephemeral. No app privileges or saved login claims.
+    // Source browsing has no app privileges. AAGAG reuses its isolated site session for Cloudflare cookies.
     const source = new BrowserWindow({ title: 'LocalClip · 출처 사이트', width: 1120, height: 820, autoHideMenuBar: true,
-      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'source-preview' } });
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: url.includes('aagag.com') ? 'persist:localclip-aagag' : 'source-preview' } });
     source.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     source.webContents.on('will-navigate', (e, next) => { if (!safeURL(next)) e.preventDefault(); });
     source.webContents.on('will-redirect', (e, next) => { if (!safeURL(next)) e.preventDefault(); });
@@ -84,6 +128,7 @@ app.whenReady().then(() => {
     return true;
   });
   ipcMain.handle('archive-info', async event => { assertMainFrame(event, main); return archiveInfo(); });
+  ipcMain.handle('aagag-refresh', async event => { assertMainFrame(event, main); return collectAagag(); });
   ipcMain.handle('archive-choose-folder', async event => {
     assertMainFrame(event, main);
     const result = await dialog.showOpenDialog(main, { title: 'LocalClip 저장 위치 선택', properties: ['openDirectory', 'createDirectory'] });

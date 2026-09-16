@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld('localclip', {
   chooseArchiveFolder: () => ipcRenderer.invoke('archive-choose-folder'),
   savePost: (post) => ipcRenderer.invoke('archive-save-post', post),
   deletePost: (post) => ipcRenderer.invoke('archive-delete-post', post),
+  refreshAagag: () => ipcRenderer.invoke('aagag-refresh'),
 });

@@ -8,7 +8,6 @@ type View = 'all' | 'unread' | 'saved' | 'settings' | string;
 type Scenario = 'normal' | 'empty' | 'loading' | 'auth' | 'partial';
 const sourceName = (b?: Board) => b?.source === 'inven' ? '인벤' : b?.source === 'aagag' ? 'AAGAG' : '준비 중';
 const repository = new DemoRepository({ getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) });
-const posts = repository.posts();
 function timeAgo(timestamp: number) {
   const minutes = Math.max(1, Math.floor((Date.now() - timestamp) / 60_000));
   return minutes < 60 ? `${minutes}분 전` : minutes < 1440 ? `${Math.floor(minutes / 60)}시간 전` : `${Math.floor(minutes / 1440)}일 전`;
@@ -25,6 +24,7 @@ function SourceIcon({ board }: { board?: Board }) { return <span className={`sou
 export default function App() {
   const [boot] = useState(() => { try { return { data: repository.load(), error: '' }; } catch { return { data: freshState(), error: '저장된 데모 상태를 불러오지 못했습니다. 이번 변경부터 다시 저장합니다.' }; } });
   const [state, setState] = useState<DemoState>(boot.data);
+  const [posts, setPosts] = useState<Post[]>(() => repository.posts());
   const [view, setView] = useState<View>('all');
   const [query, setQuery] = useState('');
   const [boardFilter, setBoardFilter] = useState('all');
@@ -71,7 +71,7 @@ export default function App() {
   const loading = refreshing || scenario === 'loading';
   const changeView = (next: View) => { setView(next); setQuery(''); setBoardFilter('all'); setSelected(null); setDetailMobile(false); setScenario('normal'); };
   const openPost = (p: Post) => { setSelected(p.id); setDetailMobile(true); setState(s => ({ ...s, read: [...new Set([...s.read, p.id])] })); };
-  const archivePost = (p: Post): ArchivePost => ({ id: p.id, source: boardFor(p)?.source ?? 'unsupported', title: p.title, author: p.author, category: p.category, sourceUrl: boardFor(p)?.url ?? '', publishedAt: p.publishedAt, paragraphs: p.paragraphs, image: p.image });
+  const archivePost = (p: Post): ArchivePost => ({ id: p.id, source: boardFor(p)?.source ?? 'unsupported', title: p.title, author: p.author, category: p.category, sourceUrl: p.url ?? boardFor(p)?.url ?? '', publishedAt: p.publishedAt, paragraphs: p.paragraphs, image: p.image });
   const toggleSave = async (p: Post) => {
     if (state.saved[p.id]) { setDeletePost(p); return; }
     if (window.localclip) {
@@ -96,14 +96,28 @@ export default function App() {
     try { const info = await window.localclip.chooseArchiveFolder(); setArchiveRoot(info.root); if (info.root) { setState(s => ({ ...s, preferences: { ...s.preferences, storageLabel: info.root! } })); setToast('저장 위치를 변경했습니다. 기존 파일은 이동하지 않습니다.'); } }
     catch { setStorageError('저장 위치를 변경하지 못했습니다.'); }
   };
-  const refresh = () => {
+  const refresh = async () => {
     if (refreshTimer.current || scenario === 'loading') return;
     setRefreshing(true);
-    refreshTimer.current = setTimeout(() => { setRefreshing(false); setLastRefresh(Date.now()); setToast('샘플 목록을 확인했어요. 실제 사이트 수집은 연결 예정입니다.'); refreshTimer.current = null; }, 700);
+    if (window.localclip) {
+      refreshTimer.current = setTimeout(() => {}, 60_000);
+      try {
+        const result = await window.localclip.refreshAagag();
+        if (!result.ok) throw new Error(result.error);
+        setPosts(current => [...current.filter(item => item.boardId !== 'aagag'), ...result.posts]);
+        setLastRefresh(result.fetchedAt);
+        setToast(`AAGAG 최신 글 ${result.posts.length}개를 가져왔습니다.`);
+      } catch (error) {
+        setStorageError(error instanceof Error && error.message ? error.message : 'AAGAG 연결에 실패했습니다. 기존 목록을 유지합니다.');
+      } finally { setRefreshing(false); if (refreshTimer.current) clearTimeout(refreshTimer.current); refreshTimer.current = null; }
+      return;
+    }
+    refreshTimer.current = setTimeout(() => { setRefreshing(false); setLastRefresh(Date.now()); setToast('브라우저 미리보기에서는 샘플 목록을 표시합니다.'); refreshTimer.current = null; }, 700);
   };
   refreshFn.current = refresh;
+  useEffect(() => { if (window.localclip) void refreshFn.current(); }, []);
   const openOriginal = async (p: Post) => {
-    const url = boardFor(p)?.url;
+    const url = p.url ?? boardFor(p)?.url;
     if (!url) return;
     if (window.localclip) { const opened = await window.localclip.openSource(url).catch(() => false); if (!opened) setToast('출처 창을 열지 못했습니다.'); }
     else window.open(url, '_blank', 'noopener,noreferrer');
@@ -173,16 +187,16 @@ export default function App() {
                   <button className="post-main" onClick={() => openPost(p)} aria-label={`${p.title} 읽기`} aria-pressed={selected === p.id}><span className="post-meta"><SourceIcon board={boardFor(p)} /><span>{sourceName(boardFor(p))}</span><span className="meta-dot">·</span><time>{timeAgo(p.publishedAt)}</time>{!state.read.includes(p.id) && <span className="unread-dot" aria-label="안 읽음" />}</span><span className="post-title">{p.title}</span><span className="post-excerpt">{p.excerpt}</span><span className="post-footer"><span>{p.category}</span><span>{p.author}</span></span></button>
                   <button disabled={archiveBusy} className={`card-bookmark icon-btn ${state.saved[p.id] ? 'is-saved' : ''}`} aria-label={`${p.title} ${state.saved[p.id] ? '저장 취소' : '저장'}`} aria-pressed={Boolean(state.saved[p.id])} onClick={() => toggleSave(p)}><Bookmark size={16} fill={state.saved[p.id] ? 'currentColor' : 'none'} /></button>
                 </div>)}
-              </div><div className="list-bottom"><Check size={13} />샘플 글 {visible.length}개를 표시하고 있어요</div>
+              </div><div className="list-bottom"><Check size={13} />{posts.some(item => item.live) ? 'AAGAG 실제 목록 포함' : '샘플 목록'} · {visible.length}개</div>
             </section>
             <section className="reader" aria-label="글 상세">
               {!post || loading ? <Empty icon={BookOpen} title="마음에 드는 이야기를 골라보세요" text="왼쪽 목록에서 글을 선택하면 여기에서 읽을 수 있어요." /> : <>
-                <div className="reader-actions"><button className="icon-btn back-button" aria-label="목록으로 돌아가기" onClick={() => setDetailMobile(false)}><ArrowLeft size={18} /></button><span className="reader-source"><SourceIcon board={boardFor(post)} />{sourceName(boardFor(post))}<ChevronRight size={12} /><span>{boardFor(post)?.name}</span></span><div className="reader-button-group"><button className="text-button" onClick={() => openOriginal(post)} title="샘플에는 실제 원문이 없어 출처 게시판을 엽니다">원문 열기<ExternalLink size={13} /></button><button disabled={archiveBusy} className={`save-button ${state.saved[post.id] ? 'saved' : ''}`} onClick={() => toggleSave(post)}><Bookmark size={15} fill={state.saved[post.id] ? 'currentColor' : 'none'} />{archiveBusy ? '처리 중' : state.saved[post.id] ? '저장됨' : '저장'}</button></div></div>
-                <article className="article-scroll" key={post.id}><div className="article-category">{post.category}<span>DEMO STORY</span></div><h2>{post.title}</h2><div className="article-meta"><span className="author-avatar">{post.author.slice(0, 1)}</span><strong>{post.author}</strong><span>·</span><time>{new Date(post.publishedAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}</time><span>·</span><span>3분 읽기</span></div>
+                <div className="reader-actions"><button className="icon-btn back-button" aria-label="목록으로 돌아가기" onClick={() => setDetailMobile(false)}><ArrowLeft size={18} /></button><span className="reader-source"><SourceIcon board={boardFor(post)} />{sourceName(boardFor(post))}<ChevronRight size={12} /><span>{boardFor(post)?.name}</span></span><div className="reader-button-group"><button className="text-button" onClick={() => openOriginal(post)}>원문 열기<ExternalLink size={13} /></button><button disabled={archiveBusy} className={`save-button ${state.saved[post.id] ? 'saved' : ''}`} onClick={() => toggleSave(post)}><Bookmark size={15} fill={state.saved[post.id] ? 'currentColor' : 'none'} />{archiveBusy ? '처리 중' : state.saved[post.id] ? '저장됨' : '저장'}</button></div></div>
+                <article className="article-scroll" key={post.id}><div className="article-category">{post.category}<span>{post.live ? 'LIVE LIST' : 'DEMO STORY'}</span></div><h2>{post.title}</h2><div className="article-meta"><span className="author-avatar">{post.author.slice(0, 1)}</span><strong>{post.author}</strong><span>·</span><time>{new Date(post.publishedAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}</time>{!post.live && <><span>·</span><span>3분 읽기</span></>}</div>
                   {scenario === 'partial' && <div className="partial-banner"><WifiOff size={18} /><div><strong>일부 이미지를 저장하지 못했어요</strong><p>부분 저장 상태 예시입니다. 실제 다운로드는 연결 예정입니다.</p></div><button className="text-button" onClick={() => { setScenario('normal'); setToast('부분 저장 예시를 종료했어요. 실제 다운로드는 수행하지 않았습니다.'); }}>예시 종료</button></div>}
                   <p className="article-lead">{post.excerpt}</p>{post.image && <figure><img src={post.image} alt={post.id === 'demo-1' ? '잔잔한 호수와 산책길을 그린 샘플 일러스트' : `${post.category} 샘플 일러스트`} /><figcaption>LocalClip을 위해 만든 샘플 일러스트</figcaption></figure>}
                   {post.paragraphs.map((p, i) => /^0\d/.test(p) ? <h3 key={i}>{p}</h3> : <p key={i}>{p}</p>)}
-                  <div className="sample-disclaimer">샘플 글 · 실제 본문과 이미지는 아직 수집하지 않습니다.</div>
+                  <div className="sample-disclaimer">{post.live ? '실제 공개 목록 · 본문과 미디어 수집은 아직 연결하지 않았습니다.' : '샘플 글 · 실제 본문과 이미지는 아직 수집하지 않습니다.'}</div>
                 </article>
               </>}
             </section>
