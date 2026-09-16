@@ -30,3 +30,24 @@ dialog{border:1px solid #e1e7f0;padding:25px 28px;border-radius:14px;width:460px
 @media(max-width:1200px){.sidebar{width:190px}.reading-layout{grid-template-columns:290px minmax(0,1fr)}.article-scroll{padding:26px 32px 36px}}
 @media(max-width:1000px){.sidebar{width:176px}.reading-layout{display:block}.article-scroll{max-width:760px}.search-box{width:210px}}
 @media(max-width:680px){.sidebar{width:58px;padding:16px 7px}.main{padding:0 10px}.page-heading{padding:16px 0 12px}.page-heading h1{font-size:20px}.panel-toolbar{padding:0 8px}.search-box{width:150px}.article-scroll{padding:20px 17px}.app-footer{min-height:32px}}
+
+/* Dark theme */
+:root{color-scheme:dark;--blue:#6ea8fe;--muted:#929baa;--border:#2a303a;background:#0f1115;color:#e5e9ef}
+body,.app-shell{background:#0f1115;color:#e5e9ef}
+.sidebar{background:#12151b;border-color:var(--border)}
+.brand,.page-heading h1{color:#f3f5f8}.brand-icon{background:#3b82f6}
+.nav-item{color:#98a2b1}.nav-item:hover{background:#191e26}.nav-item.active,.nav-item.active:hover{background:#202937;color:#8fbcff}.nav-count,.active .nav-count{color:#727e90}
+.section-label,.board-nav-item small{color:#687385}.board-nav-item strong{color:#aab3c0}.add-board{border-color:#303743;color:#7f8998}.sidebar-bottom{border-color:var(--border)}
+.main{background:#0f1115}.demo-badge{border-color:#343b47;color:#8893a3}.content-panel,.reader,.settings-panel{background:#151922;border-color:var(--border)}
+.panel-toolbar,.post-list,.post-card,.reader-actions,.reader-bottom,.list-controls,.settings-intro,.setting-row,.connection-list>div{border-color:var(--border)}
+.search-box{background:#1b2029;border-color:#2b323e;color:#8d98a8}.search-box input{color:#dfe4eb}.search-box input::placeholder{color:#697586}
+.list-controls select,.sort-control select,select{background:#151922;color:#a8b1bf;border-color:#313845}
+.post-card:hover{background:#1a1f28}.post-card.selected,.post-card.selected:hover{background:#1d2633}.selected .post-title{color:#8fbcff}.post-title{color:#d9dee6}.is-read .post-title{color:#828d9d}.post-meta,.post-meta time{color:#778294}.post-card{border-color:#252b34}.post-footer>span:first-child{background:#242b35}
+.source-icon.aagag{background:#1d3026;color:#83b996}.source-icon.inven{background:#35231f;color:#e4937e}.source-icon.unsupported{background:#262c35;color:#929bab}
+.reader{background:#151922}.reader-source,.text-button{color:#8995a6}.save-button{background:#1d2a3d;border-color:#304767;color:#8fbcff}.save-button.saved{background:#22334b;border-color:#3a5680}
+.article-scroll h2,.article-scroll h3{color:#edf0f4}.article-scroll p,.article-scroll .article-lead{color:#a9b2bf}.article-meta{color:#7f8b9c}.article-meta strong{color:#a3adba}.author-avatar{background:#2b2926;color:#baaa96}.article-callout,.info-box,.settings-note{background:#1b2029;border-color:#29313d}.article-callout strong,.settings-intro h2,.setting-row h3{color:#c4ccd7}.article-callout p,.setting-row p,.settings-intro p{color:#8995a5}.sample-disclaimer{color:#747f8f}.reader-bottom{background:#151922}
+.primary-button{background:#3b82f6}.secondary-button{background:#1b2029;border-color:#323a47;color:#aeb7c4}.muted-chip{background:#202630;color:#8994a4}
+.empty-state>span{background:#1b2029;color:#687b95}.empty-state h3{color:#a4aeba}.empty-state p{color:#737f90}.skeleton i{background:#202630}.loading-state{color:#7e91aa}
+.auth-banner,.partial-banner{background:#2a2419;border-color:#443921;color:#d7ac61}.auth-banner p,.partial-banner p{color:#aa936c}.error-banner,.form-error{background:#2b1c1d;border-color:#533033;color:#e38b8f}
+dialog{background:#171b23;border-color:#343b47;color:#dce1e8}dialog::backdrop{background:#080a0dcc}.modal-description,.help-content>p{color:#939eae}.form-field{color:#a9b3c0}.form-field input{background:#11151b;border-color:#353d49;color:#e3e7ed}.form-field input::placeholder{color:#697586}.example-links button{background:#222832;color:#9cabc0}.board-preview{background:#192535;border-color:#2c425f}.board-preview p{color:#8fa4c2}
+.toast{background:#e8ecf2;color:#202632}.toast svg{color:#3b82f6}.app-footer{color:#687486}.settings-note{color:#8f9cac}.article-scroll figure img{filter:brightness(.78) saturate(.85)}

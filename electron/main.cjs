@@ -9,7 +9,7 @@ function safeURL(value) {
 app.whenReady().then(() => {
   const main = new BrowserWindow({
     title: 'LocalClip', width: 1480, height: 980, minWidth: 780, minHeight: 620,
-    backgroundColor: '#f7f9fc', autoHideMenuBar: true,
+    backgroundColor: '#0f1115', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   main.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
