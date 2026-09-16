@@ -7,7 +7,7 @@ test('register → read → save → search archive → reload → delete', asyn
   await page.getByRole('button', { name: '미리보기', exact: true }).click();
   await expect(page.getByText('인벤 주소를 확인했어요.', { exact: false })).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: '게시판 추가', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '디아2 자유 게시판.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '디아2 자유 게시판' })).toBeVisible();
   await page.getByRole('button', { name: /^전체 글/ }).click();
   await page.getByRole('button', { name: '느리게 걷는 주말, 서울 근교 산책길 5곳 읽기' }).click();
   await page.getByRole('button', { name: '저장', exact: true }).click();
@@ -36,18 +36,22 @@ test('filter, sort, unread and settings persist honestly', async ({ page }) => {
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('갱신 간격').selectOption('10');
   await expect(page.getByRole('button', { name: /폴더 선택/ })).toBeDisabled();
-  await expect(page.getByRole('button', { name: /로그인 · 연결 예정/ }).first()).toBeDisabled();
+  await expect(page.getByRole('button', { name: '연결 예정' }).first()).toBeDisabled();
   await page.reload(); await page.getByRole('button', { name: '설정', exact: true }).click();
   await expect(page.getByLabel('갱신 간격')).toHaveValue('10');
 });
 test('state previews and unknown boards', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('화면 상태 미리보기').selectOption('loading');
   await expect(page.getByText('샘플 목록을 확인하고 있어요')).toBeVisible();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('화면 상태 미리보기').selectOption('auth');
   await expect(page.getByText('인벤 인증이 만료되었어요')).toBeVisible();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('화면 상태 미리보기').selectOption('partial');
   await expect(page.getByText('일부 이미지를 저장하지 못했어요')).toBeVisible();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByLabel('화면 상태 미리보기').selectOption('empty');
   await expect(page.getByRole('heading', { name: '아직 모인 글이 없어요' })).toBeVisible();
   await page.getByRole('button', { name: '게시판 추가', exact: true }).last().click();

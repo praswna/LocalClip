@@ -8,7 +8,7 @@ const fs = require('node:fs');
   try {
     app = await electron.launch({ args: [path.resolve('.'), `--user-data-dir=${userData}`] });
     const page = await app.firstWindow();
-    await page.getByRole('heading', { name: '전체 글.' }).waitFor();
+    await page.getByRole('heading', { name: '전체 글' }).waitFor();
     await page.getByRole('button', { name: '저장', exact: true }).click();
     const unsafe = await page.evaluate(() => window.localclip.openSource('file:///C:/Windows/win.ini'));
     if (unsafe !== false) throw new Error('Unsafe URL allowed');
