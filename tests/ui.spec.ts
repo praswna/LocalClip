@@ -82,16 +82,15 @@ test('keyboard dialog focus, duplicate detection and compact layouts', async ({ 
     await expect(page.locator('.post-card').first()).toBeVisible();
   }
 });
-test('ADQE and number shortcuts navigate without hijacking text inputs', async ({ page }) => {
+test('ADQE and board number shortcuts navigate without hijacking text inputs', async ({ page }) => {
   await page.goto('/');
-  await page.keyboard.press('2');
-  await expect(page.getByRole('heading', { name: '안 읽은 글' })).toBeVisible();
-  await page.keyboard.press('3');
-  await expect(page.getByRole('heading', { name: '로컬 보관함' })).toBeVisible();
-  await page.keyboard.press('4');
-  await expect(page.getByRole('heading', { name: '설정', level: 1 })).toBeVisible();
   await page.keyboard.press('1');
-  await expect(page.getByRole('heading', { name: '전체 글' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '최신 이슈' })).toBeVisible();
+  await page.keyboard.press('2');
+  await expect(page.getByRole('heading', { name: '디아2 래더 거래' })).toBeVisible();
+  await page.keyboard.press('3');
+  await expect(page.getByRole('heading', { name: '디아2 래더 거래' })).toBeVisible();
+  await page.getByRole('button', { name: /^전체 글/ }).click();
   await page.keyboard.press('e');
   await expect(page.getByRole('heading', { name: '안 읽은 글' })).toBeVisible();
   await page.keyboard.press('q');
