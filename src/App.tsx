@@ -41,6 +41,7 @@ export default function App() {
   const [sort, setSort] = useState('newest');
   const [archiveRoot, setArchiveRoot] = useState<string | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshFn = useRef<() => void>(() => {});
 
@@ -70,8 +71,22 @@ export default function App() {
   const post = visible.find(p => p.id === selected) ?? null;
   const loading = refreshing || scenario === 'loading';
   const changeView = (next: View) => { setView(next); setQuery(''); setBoardFilter('all'); setSelected(null); setDetailMobile(false); setScenario('normal'); };
-  const openPost = (p: Post) => { setSelected(p.id); setDetailMobile(true); setState(s => ({ ...s, read: [...new Set([...s.read, p.id])] })); };
-  const archivePost = (p: Post): ArchivePost => ({ id: p.id, source: boardFor(p)?.source ?? 'unsupported', title: p.title, author: p.author, category: p.category, sourceUrl: p.url ?? boardFor(p)?.url ?? '', publishedAt: p.publishedAt, paragraphs: p.paragraphs, image: p.image });
+  const loadDetail = async (p: Post) => {
+    if (!p.live || p.content || !p.url || !window.localclip) return p;
+    setDetailLoading(true);
+    try {
+      const result = await window.localclip.getAagagDetail(p.url);
+      if (!result.ok) throw new Error(result.error);
+      const enriched = { ...p, content: result.content, paragraphs: result.content.filter(block => block.type === 'text').map(block => block.value), image: result.content.find(block => block.type === 'image')?.value };
+      setPosts(current => current.map(item => item.id === p.id ? enriched : item));
+      return enriched;
+    } catch (error) {
+      setStorageError(error instanceof Error && error.message ? error.message : 'AAGAG 본문 수집에 실패했습니다.');
+      return p;
+    } finally { setDetailLoading(false); }
+  };
+  const openPost = (p: Post) => { setSelected(p.id); setDetailMobile(true); setState(s => ({ ...s, read: [...new Set([...s.read, p.id])] })); void loadDetail(p); };
+  const archivePost = (p: Post): ArchivePost => ({ id: p.id, source: boardFor(p)?.source ?? 'unsupported', title: p.title, author: p.author, category: p.category, sourceUrl: p.url ?? boardFor(p)?.url ?? '', publishedAt: p.publishedAt, paragraphs: p.paragraphs, image: p.image, content: p.content });
   const toggleSave = async (p: Post) => {
     if (state.saved[p.id]) { setDeletePost(p); return; }
     if (window.localclip) {
@@ -80,10 +95,11 @@ export default function App() {
         let root = archiveRoot;
         if (!root) { const info = await window.localclip.chooseArchiveFolder(); root = info.root; setArchiveRoot(root); }
         if (!root) { setToast('저장 위치 선택을 취소했습니다.'); return; }
-        const result = await window.localclip.savePost(archivePost(p));
+        const target = await loadDetail(p);
+        const result = await window.localclip.savePost(archivePost(target));
         if (!result.ok) { setToast('글을 저장하지 못했습니다.'); return; }
         setState(s => ({ ...s, saved: { ...s.saved, [p.id]: Date.now() }, preferences: { ...s.preferences, storageLabel: root! } }));
-        setToast(result.imageSaved ? '본문과 이미지를 글별 폴더에 저장했습니다.' : '본문을 글별 폴더에 저장했습니다.');
+        setToast(result.partial ? '본문은 저장했지만 일부 미디어를 받지 못했습니다.' : result.imageSaved ? '본문과 미디어를 글별 폴더에 저장했습니다.' : '본문을 글별 폴더에 저장했습니다.');
         return;
       } catch { setStorageError('글 파일 저장에 실패했습니다. 저장 위치와 권한을 확인해 주세요.'); return; }
       finally { setArchiveBusy(false); }
@@ -194,9 +210,8 @@ export default function App() {
                 <div className="reader-actions"><button className="icon-btn back-button" aria-label="목록으로 돌아가기" onClick={() => setDetailMobile(false)}><ArrowLeft size={18} /></button><span className="reader-source"><SourceIcon board={boardFor(post)} />{sourceName(boardFor(post))}<ChevronRight size={12} /><span>{boardFor(post)?.name}</span></span><div className="reader-button-group"><button className="text-button" onClick={() => openOriginal(post)}>원문 열기<ExternalLink size={13} /></button><button disabled={archiveBusy} className={`save-button ${state.saved[post.id] ? 'saved' : ''}`} onClick={() => toggleSave(post)}><Bookmark size={15} fill={state.saved[post.id] ? 'currentColor' : 'none'} />{archiveBusy ? '처리 중' : state.saved[post.id] ? '저장됨' : '저장'}</button></div></div>
                 <article className="article-scroll" key={post.id}><div className="article-category">{post.category}<span>{post.live ? 'LIVE LIST' : 'DEMO STORY'}</span></div><h2>{post.title}</h2><div className="article-meta"><span className="author-avatar">{post.author.slice(0, 1)}</span><strong>{post.author}</strong><span>·</span><time>{new Date(post.publishedAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}</time>{!post.live && <><span>·</span><span>3분 읽기</span></>}</div>
                   {scenario === 'partial' && <div className="partial-banner"><WifiOff size={18} /><div><strong>일부 이미지를 저장하지 못했어요</strong><p>부분 저장 상태 예시입니다. 실제 다운로드는 연결 예정입니다.</p></div><button className="text-button" onClick={() => { setScenario('normal'); setToast('부분 저장 예시를 종료했어요. 실제 다운로드는 수행하지 않았습니다.'); }}>예시 종료</button></div>}
-                  <p className="article-lead">{post.excerpt}</p>{post.image && <figure><img src={post.image} alt={post.id === 'demo-1' ? '잔잔한 호수와 산책길을 그린 샘플 일러스트' : `${post.category} 샘플 일러스트`} /><figcaption>LocalClip을 위해 만든 샘플 일러스트</figcaption></figure>}
-                  {post.paragraphs.map((p, i) => /^0\d/.test(p) ? <h3 key={i}>{p}</h3> : <p key={i}>{p}</p>)}
-                  <div className="sample-disclaimer">{post.live ? '실제 공개 목록 · 본문과 미디어 수집은 아직 연결하지 않았습니다.' : '샘플 글 · 실제 본문과 이미지는 아직 수집하지 않습니다.'}</div>
+                  {post.live ? detailLoading && !post.content ? <div className="loading-state" role="status"><LoaderCircle className="spinning" size={25} /><p>실제 본문을 가져오고 있어요</p></div> : post.content ? post.content.map((block, i) => block.type === 'text' ? <p key={i}>{block.value}</p> : block.type === 'image' ? <figure key={i}><img src={block.value} alt="" loading="lazy" /></figure> : <video key={i} src={block.value} controls preload="metadata" />) : <><p className="article-lead">{post.excerpt}</p>{post.paragraphs.map((p, i) => <p key={i}>{p}</p>)}</> : <><p className="article-lead">{post.excerpt}</p>{post.image && <figure><img src={post.image} alt={post.id === 'demo-1' ? '잔잔한 호수와 산책길을 그린 샘플 일러스트' : `${post.category} 샘플 일러스트`} /><figcaption>LocalClip을 위해 만든 샘플 일러스트</figcaption></figure>}{post.paragraphs.map((p, i) => /^0\d/.test(p) ? <h3 key={i}>{p}</h3> : <p key={i}>{p}</p>)}</>}
+                  <div className="sample-disclaimer">{post.live ? post.content ? 'AAGAG에서 가져온 실제 공개 본문입니다.' : '실제 공개 목록 · 본문을 불러오지 못했습니다.' : '샘플 글 · 실제 본문과 이미지는 아직 수집하지 않습니다.'}</div>
                 </article>
               </>}
             </section>

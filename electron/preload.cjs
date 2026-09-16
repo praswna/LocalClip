@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('localclip', {
   savePost: (post) => ipcRenderer.invoke('archive-save-post', post),
   deletePost: (post) => ipcRenderer.invoke('archive-delete-post', post),
   refreshAagag: () => ipcRenderer.invoke('aagag-refresh'),
+  getAagagDetail: (url) => ipcRenderer.invoke('aagag-detail', url),
 });

@@ -1,8 +1,9 @@
 export type Source = 'inven' | 'aagag' | 'unsupported';
 export interface Board { id: string; name: string; url: string; source: Source }
+export interface PostContent { type: 'text' | 'image' | 'video'; value: string }
 export interface Post {
   id: string; boardId: string; title: string; excerpt: string; author: string;
-  publishedAt: number; category: string; paragraphs: string[]; image?: string; url?: string; live?: boolean;
+  publishedAt: number; category: string; paragraphs: string[]; image?: string; url?: string; live?: boolean; content?: PostContent[];
 }
 export interface Preferences { interval: number; storageLabel: string }
 export interface DemoState {
@@ -14,13 +15,15 @@ export interface ClipRepository {
   posts(): Post[];
 }
 export interface ArchiveInfo { root: string | null; savedIds: string[] }
-export interface ArchivePost { id: string; source: Source; title: string; author: string; category: string; sourceUrl: string; publishedAt: number; paragraphs: string[]; image?: string }
+export interface ArchivePost { id: string; source: Source; title: string; author: string; category: string; sourceUrl: string; publishedAt: number; paragraphs: string[]; image?: string; content?: PostContent[] }
 export interface AagagRefreshResult { ok: boolean; posts: Post[]; fetchedAt: number; error?: string }
+export interface AagagDetailResult { ok: boolean; content: PostContent[]; error?: string }
 declare global { interface Window { localclip?: {
   openSource(url: string): Promise<boolean>;
   getArchiveInfo(): Promise<ArchiveInfo>;
   chooseArchiveFolder(): Promise<ArchiveInfo>;
-  savePost(post: ArchivePost): Promise<{ ok: boolean; needsFolder?: boolean; folder?: string; imageSaved?: boolean }>;
+  savePost(post: ArchivePost): Promise<{ ok: boolean; needsFolder?: boolean; folder?: string; imageSaved?: boolean; partial?: boolean }>;
   deletePost(post: ArchivePost): Promise<{ ok: boolean }>;
   refreshAagag(): Promise<AagagRefreshResult>;
+  getAagagDetail(url: string): Promise<AagagDetailResult>;
 } } }
